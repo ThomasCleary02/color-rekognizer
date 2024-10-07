@@ -1,11 +1,9 @@
-# File: api.py
-
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
-import cv2
-import numpy as np
+from PIL import Image
+import io
 import logging
-from detect_color import RGBColorAnalyzer
+from detect_color import RGBColorAnalyzer 
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -13,15 +11,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 analyzer = RGBColorAnalyzer()
-
-def numpy_to_python(obj):
-    if isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    return obj
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -83,32 +72,28 @@ async def analyze_image(file: UploadFile = File(...)):
         
         logger.debug(f"File size: {len(contents)} bytes")
         
-        nparr = np.frombuffer(contents, np.uint8)
-        logger.debug(f"Numpy array shape: {nparr.shape}")
-        
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        img = Image.open(io.BytesIO(contents))
         if img is None:
             raise HTTPException(status_code=400, detail="Could not decode image")
         
-        logger.debug(f"Decoded image shape: {img.shape}")
+        logger.debug(f"Decoded image size: {img.size}")
         
         results = analyzer.analyze_image(img, num_colors=3)
         
         formatted_results = {}
         for i, (rgb, percentage) in enumerate(results.items(), 1):
-            rgb_tuple = tuple(numpy_to_python(x) for x in rgb)
-            complement_tuple = RGBColorAnalyzer.find_complement(rgb_tuple)
+            complement_tuple = RGBColorAnalyzer.find_complement(rgb)
             
             formatted_results[f"color{i}"] = {
                 "color": {
-                    "rgb": list(rgb_tuple),
-                    "hex": RGBColorAnalyzer.rgb_to_hex(rgb_tuple),
+                    "rgb": list(rgb),
+                    "hex": RGBColorAnalyzer.rgb_to_hex(rgb),
                 },
                 "compliment": {
                     "rgb": list(complement_tuple),
                     "hex": RGBColorAnalyzer.rgb_to_hex(complement_tuple),
                 },
-                "percentage": f"{numpy_to_python(percentage)}%",
+                "percentage": f"{percentage}%",
             }
         
         logger.info("Image analysis completed successfully")
