@@ -36,6 +36,10 @@ def numpy_to_python(obj):
         return obj.tolist()
     return obj
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "The Lambda function is running correctly"}
+
 @app.post("/analyze_image/")
 async def analyze_image(file: UploadFile = File(...), isBase64Encoded: bool = False):
     try:
@@ -70,14 +74,14 @@ async def analyze_image(file: UploadFile = File(...), isBase64Encoded: bool = Fa
             
             formatted_results[f"color{i}"] = {
                 "color": {
-                    "rgb": list(rgb_tuple),  # Convert to list for JSON serialization
+                    "rgb": list(rgb_tuple),
                     "hex": RGBColorAnalyzer.rgb_to_hex(rgb_tuple),
                 },
-                "compliment": {  # Note: 'compliment' is used here, though 'complement' is the correct spelling
-                    "rgb": list(complement_tuple),  # Convert to list for JSON serialization
+                "compliment": {
+                    "rgb": list(complement_tuple),
                     "hex": RGBColorAnalyzer.rgb_to_hex(complement_tuple),
                 },
-                "percentage": f"{numpy_to_python(percentage)}%",  # Add percentage sign
+                "percentage": f"{numpy_to_python(percentage)}%",
             }
         
         logger.info("Image analysis completed successfully")
