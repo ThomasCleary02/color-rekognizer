@@ -18,4 +18,4 @@ RUN yum update -y && yum install -y \
 COPY . ${LAMBDA_TASK_ROOT}
 
 # Set the CMD to your handler
-CMD [ "api.lambda_handler" ]
+CMD [ "api.handler" ]

@@ -5,11 +5,17 @@ from mangum import Mangum
 import numpy as np
 import logging
 import cv2
+import os
 
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Configure FastAPI with root_path
+stage = os.environ.get('STAGE', None)
+root_path = f"/{stage}" if stage else ""
+app = FastAPI(root_path=root_path)
 
 app = FastAPI()
 analyzer = RGBColorAnalyzer()
@@ -122,7 +128,4 @@ async def analyze_image(file: UploadFile = File(...)):
     finally:
         await file.close()
 
-handler = Mangum(app)
-
-def lambda_handler(event, context):
-    return handler(event, context)
+handler = Mangum(app, lifespan="off")
