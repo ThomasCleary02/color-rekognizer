@@ -1,9 +1,11 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
-from PIL import Image
-import io
+from detect_color import RGBColorAnalyzer
+from mangum import Mangum
+import numpy as np
 import logging
-from detect_color import RGBColorAnalyzer 
+import cv2
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -12,54 +14,62 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 analyzer = RGBColorAnalyzer()
 
+def numpy_to_python(obj):
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     html_content = """
-    <html>
-        <head>
-            <title>Color Analyzer API</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    margin: 0;
-                    background-color: #f0f0f0;
-                }
-                .container {
-                    text-align: center;
-                    padding: 20px;
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                }
-                .button {
-                    display: inline-block;
-                    padding: 10px 20px;
-                    margin-top: 20px;
-                    background-color: #007bff;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 5px;
-                    transition: background-color 0.3s;
-                }
-                .button:hover {
-                    background-color: #0056b3;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Welcome to Color Analyzer API</h1>
-                <p>Click the button below to view the API documentation.</p>
-                <a href="/docs" class="button">View API Docs</a>
-            </div>
-        </body>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>API Documentation</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background-color: #f0f0f0;
+            }
+            .button {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 18px;
+                cursor: pointer;
+                text-align: center;
+                text-decoration: none;
+                outline: none;
+                color: #fff;
+                background-color: #4CAF50;
+                border: none;
+                border-radius: 15px;
+                box-shadow: 0 9px #999;
+            }
+            .button:hover {background-color: #3e8e41}
+            .button:active {
+                background-color: #3e8e41;
+                box-shadow: 0 5px #666;
+                transform: translateY(4px);
+            }
+        </style>
+    </head>
+    <body>
+        <a href="/docs" class="button">Click here for docs</a>
+    </body>
     </html>
     """
-    return HTMLResponse(content=html_content)
+    return HTMLResponse(content=html_content, status_code=200)
 
 @app.post("/analyze_image/")
 async def analyze_image(file: UploadFile = File(...)):
@@ -72,28 +82,32 @@ async def analyze_image(file: UploadFile = File(...)):
         
         logger.debug(f"File size: {len(contents)} bytes")
         
-        img = Image.open(io.BytesIO(contents))
+        nparr = np.frombuffer(contents, np.uint8)
+        logger.debug(f"Numpy array shape: {nparr.shape}")
+        
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             raise HTTPException(status_code=400, detail="Could not decode image")
         
-        logger.debug(f"Decoded image size: {img.size}")
+        logger.debug(f"Decoded image shape: {img.shape}")
         
         results = analyzer.analyze_image(img, num_colors=3)
         
         formatted_results = {}
         for i, (rgb, percentage) in enumerate(results.items(), 1):
-            complement_tuple = RGBColorAnalyzer.find_complement(rgb)
+            rgb_tuple = tuple(numpy_to_python(x) for x in rgb)
+            complement_tuple = RGBColorAnalyzer.find_complement(rgb_tuple)
             
             formatted_results[f"color{i}"] = {
                 "color": {
-                    "rgb": list(rgb),
-                    "hex": RGBColorAnalyzer.rgb_to_hex(rgb),
+                    "rgb": list(rgb_tuple),  # Convert to list for JSON serialization
+                    "hex": RGBColorAnalyzer.rgb_to_hex(rgb_tuple),
                 },
-                "compliment": {
-                    "rgb": list(complement_tuple),
+                "compliment": {  # Note: 'compliment' is used here as per your request, though 'complement' is the correct spelling
+                    "rgb": list(complement_tuple),  # Convert to list for JSON serialization
                     "hex": RGBColorAnalyzer.rgb_to_hex(complement_tuple),
                 },
-                "percentage": f"{percentage}%",
+                "percentage": f"{numpy_to_python(percentage)}%",  # Add percentage sign
             }
         
         logger.info("Image analysis completed successfully")
@@ -108,6 +122,7 @@ async def analyze_image(file: UploadFile = File(...)):
     finally:
         await file.close()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+handler = Mangum(app)
+
+def lambda_handler(event, context):
+    return handler(event, context)

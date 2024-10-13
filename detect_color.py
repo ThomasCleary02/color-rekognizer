@@ -1,8 +1,9 @@
-from PIL import Image
+import cv2
+import numpy as np
 from collections import Counter
 
 class RGBColorAnalyzer:
-    def __init__(self):
+    def init(self):
         pass
 
     def analyze_image(self, img, num_colors=3):
@@ -10,19 +11,19 @@ class RGBColorAnalyzer:
             raise ValueError("Error: Image not found or couldn't be read")
 
         # Resize image (optional, remove if you want to use original size)
-        image = img.resize((700, 600))
+        image = cv2.resize(img, (700, 600))
 
-        # Convert the image to RGB mode if it's not already
-        image_rgb = image.convert('RGB')
+        # Convert the image from BGR to RGB
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # Get all pixels
-        pixels = list(image_rgb.getdata())
+        # Reshape the image to be a list of pixels
+        pixels = image_rgb.reshape(-1, 3)
 
         # Count the occurrences of each color
-        pixel_counts = Counter(pixels)
+        pixel_counts = Counter(map(tuple, pixels))
 
         # Calculate total number of pixels
-        total_pixels = image.width * image.height
+        total_pixels = image.shape[0] * image.shape[1]
 
         # Get the most common colors and their counts
         most_common = pixel_counts.most_common(num_colors)
