@@ -1,12 +1,12 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+import logging
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from detect_color import RGBColorAnalyzer
 from mangum import Mangum
 import numpy as np
-import logging
+import base64
 import cv2
 import os
-
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,8 +17,15 @@ stage = os.environ.get('STAGE', None)
 root_path = f"/{stage}" if stage else ""
 app = FastAPI(root_path=root_path)
 
-app = FastAPI()
 analyzer = RGBColorAnalyzer()
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.debug(f"Received request: {request.method} {request.url}")
+    logger.debug(f"Headers: {request.headers}")
+    response = await call_next(request)
+    logger.debug(f"Response status: {response.status_code}")
+    return response
 
 def numpy_to_python(obj):
     if isinstance(obj, np.integer):
@@ -29,60 +36,17 @@ def numpy_to_python(obj):
         return obj.tolist()
     return obj
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>API Documentation</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-                background-color: #f0f0f0;
-            }
-            .button {
-                display: inline-block;
-                padding: 10px 20px;
-                font-size: 18px;
-                cursor: pointer;
-                text-align: center;
-                text-decoration: none;
-                outline: none;
-                color: #fff;
-                background-color: #4CAF50;
-                border: none;
-                border-radius: 15px;
-                box-shadow: 0 9px #999;
-            }
-            .button:hover {background-color: #3e8e41}
-            .button:active {
-                background-color: #3e8e41;
-                box-shadow: 0 5px #666;
-                transform: translateY(4px);
-            }
-        </style>
-    </head>
-    <body>
-        <a href="/docs" class="button">Click here for docs</a>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content, status_code=200)
-
 @app.post("/analyze_image/")
-async def analyze_image(file: UploadFile = File(...)):
+async def analyze_image(file: UploadFile = File(...), isBase64Encoded: bool = False):
     try:
         logger.info(f"Received file: {file.filename}")
         
         contents = await file.read()
+
+        # Decode the Base64 image data if needed
+        if isBase64Encoded:
+            contents = base64.b64decode(contents)
+        
         if len(contents) == 0:
             raise HTTPException(status_code=400, detail="Empty file")
         
@@ -109,7 +73,7 @@ async def analyze_image(file: UploadFile = File(...)):
                     "rgb": list(rgb_tuple),  # Convert to list for JSON serialization
                     "hex": RGBColorAnalyzer.rgb_to_hex(rgb_tuple),
                 },
-                "compliment": {  # Note: 'compliment' is used here as per your request, though 'complement' is the correct spelling
+                "compliment": {  # Note: 'compliment' is used here, though 'complement' is the correct spelling
                     "rgb": list(complement_tuple),  # Convert to list for JSON serialization
                     "hex": RGBColorAnalyzer.rgb_to_hex(complement_tuple),
                 },
@@ -128,4 +92,6 @@ async def analyze_image(file: UploadFile = File(...)):
     finally:
         await file.close()
 
+# Modify the Mangum handler configuration
 handler = Mangum(app, lifespan="off")
+logger.info("Mangum handler initialized")
