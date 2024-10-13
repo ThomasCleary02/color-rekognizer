@@ -40,7 +40,7 @@ def numpy_to_python(obj):
 async def health_check():
     return {"status": "healthy", "message": "The Lambda function is running correctly"}
 
-@app.post("/analyze_image/")
+@app.post("/analyze_image")
 async def analyze_image(file: UploadFile = File(...), isBase64Encoded: bool = False):
     try:
         logger.info(f"Received file: {file.filename}")
