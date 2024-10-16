@@ -1,7 +1,7 @@
 from collections import Counter
 
 class RGBColorAnalyzer:
-    def __init__(self):
+    def init(self):
         pass
 
     def analyze_image(self, img, num_colors=3):

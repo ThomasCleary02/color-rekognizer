@@ -1,72 +1,29 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
-from PIL import Image
-import io
-import logging
-from detect_color import RGBColorAnalyzer
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+# Configure FastAPI with root_path
+stage = os.environ.get('STAGE', None)
+root_path = f"/{stage}" if stage else ""
+app = FastAPI(root_path=root_path)
+
 analyzer = RGBColorAnalyzer()
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    html_content = """
-    <html>
-        <head>
-            <title>Color Analyzer API</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    margin: 0;
-                    background-color: #f0f0f0;
-                }
-                .container {
-                    text-align: center;
-                    padding: 20px;
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                }
-                .button {
-                    display: inline-block;
-                    padding: 10px 20px;
-                    margin-top: 20px;
-                    background-color: #007bff;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 5px;
-                    transition: background-color 0.3s;
-                }
-                .button:hover {
-                    background-color: #0056b3;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Welcome to Color Analyzer API</h1>
-                <p>Click the button below to view the API documentation.</p>
-                <a href="/docs" class="button">View API Docs</a>
-            </div>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
-
-@app.post("/analyze_image/")
-async def analyze_image(file: UploadFile = File(...)):
+@app.post("/analyze_image")
+async def analyze_image(file: UploadFile = File(...), isBase64Encoded: bool = False):
     try:
         logger.info(f"Received file: {file.filename}")
         
         contents = await file.read()
+
+        # Decode the Base64 image data if needed
+        if isBase64Encoded:
+            contents = base64.b64decode(contents)
+        
         if len(contents) == 0:
             raise HTTPException(status_code=400, detail="Empty file")
         
@@ -108,6 +65,6 @@ async def analyze_image(file: UploadFile = File(...)):
     finally:
         await file.close()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Modify the Mangum handler configuration
+handler = Mangum(app, lifespan="off")
+logger.info("Mangum handler initialized")
