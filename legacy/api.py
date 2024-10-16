@@ -1,5 +1,11 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
+from detect_color import RGBColorAnalyzer
+from mangum import Mangum
+import logging
+import base64
+import os
+import io
 
 
 # Set up logging
